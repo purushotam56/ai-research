@@ -1,0 +1,10 @@
+pip install --force-reinstall --no-cache-dir tenacity==8.2.3
+pip install "ibm-watsonx-ai==1.0.8"
+pip install "ibm-watson-machine-learning==1.0.367"
+pip install "langchain-ibm==0.1.7"
+pip install "langchain-community==0.2.10"
+pip install "langchain-experimental==0.0.62"
+pip install "langchainhub==0.1.18"
+pip install "langchain==0.2.11"
+pip install "pypdf==4.2.0"
+pip install "chromadb==0.4.24"

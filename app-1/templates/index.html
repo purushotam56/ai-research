@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Document Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .tab-button {
+            padding: 12px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab-button.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.3s;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .message.success {
+            display: block;
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            display: block;
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .document-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .document-item h4 {
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .document-item p {
+            font-size: 13px;
+            color: #666;
+            margin: 5px 0;
+        }
+
+        .search-result {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border-left: 4px solid #28a745;
+        }
+
+        .search-result h5 {
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .search-result p {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            padding: 20px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            display: block;
+            padding: 12px;
+            background: #f8f9fa;
+            border: 2px dashed #ddd;
+            border-radius: 6px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .file-input-wrapper:hover .file-input-label {
+            border-color: #667eea;
+            background: #f0f3ff;
+        }
+
+        .success-check {
+            color: #28a745;
+            margin-right: 8px;
+        }
+
+        .error-cross {
+            color: #dc3545;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 RAG Document Manager</h1>
+            <p>Manage documents with semantic search</p>
+        </div>
+
+        <div class="content">
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-button active" onclick="switchTab('auth')">🔐 Auth</button>
+                <button class="tab-button" onclick="switchTab('add')">📤 Add Data</button>
+                <button class="tab-button" onclick="switchTab('docs')">📚 Documents</button>
+                <button class="tab-button" onclick="switchTab('search')">🔍 Search</button>
+                <button class="tab-button" onclick="switchTab('chat')">💬 Chat</button>
+            </div>
+
+            <!-- Auth Tab -->
+            <div id="auth" class="tab-content active">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <button class="tab-button" style="border: none; padding: 5px 15px; background: #f8f9fa;" onclick="switchAuthTab('login')" id="loginBtn">Login</button>
+                    <button class="tab-button" style="border: none; padding: 5px 15px; background: #f8f9fa;" onclick="switchAuthTab('register')" id="registerBtn">Register</button>
+                </div>
+
+                <!-- Login -->
+                <div id="loginForm" class="active">
+                    <div class="message" id="loginMsg"></div>
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="loginUsername" placeholder="Enter username">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="loginPassword" placeholder="Enter password">
+                    </div>
+                    <button onclick="handleLogin()">Login</button>
+                </div>
+
+                <!-- Register -->
+                <div id="registerForm" style="display: none;">
+                    <div class="message" id="registerMsg"></div>
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="regUsername" placeholder="Choose username">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="regEmail" placeholder="your@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="regPassword" placeholder="Create password">
+                    </div>
+                    <button onclick="handleRegister()">Register</button>
+                </div>
+            </div>
+
+            <!-- Add Data Tab -->
+            <div id="add" class="tab-content">
+                <div class="message" id="addMsg"></div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label>User ID</label>
+                    <input type="number" id="userId" placeholder="From login (required)">
+                </div>
+
+                <h3 style="font-size: 16px; margin-bottom: 15px;">Add from URL</h3>
+                <div class="form-group">
+                    <label>URL</label>
+                    <input type="url" id="addUrl" placeholder="https://example.com">
+                </div>
+                <button onclick="handleAddUrl()">Scrape & Add</button>
+
+                <hr style="margin: 25px 0; border: none; border-top: 1px solid #eee;">
+
+                <h3 style="font-size: 16px; margin-bottom: 15px;">Upload File</h3>
+                <div class="form-group">
+                    <div class="file-input-wrapper">
+                        <input type="file" id="uploadFile" accept=".pdf,.txt,.md">
+                        <label class="file-input-label" for="uploadFile">
+                            📎 Click to select PDF, TXT, or MD file
+                        </label>
+                    </div>
+                </div>
+                <button onclick="handleFileUpload()">Upload & Process</button>
+            </div>
+
+            <!-- Documents Tab -->
+            <div id="docs" class="tab-content">
+                <div class="message" id="docsMsg"></div>
+                <div class="form-group">
+                    <label>User ID</label>
+                    <input type="number" id="docsUserId" placeholder="Your user ID">
+                </div>
+                <button onclick="handleListDocs()">Load Documents</button>
+                <div id="docsList" style="margin-top: 20px;"></div>
+                <div id="docDetail" style="display: none; margin-top: 20px;">
+                    <button onclick="closeDocDetail()" style="background: #6c757d; margin-bottom: 15px;">← Back</button>
+                    <h3 id="detailTitle" style="margin-bottom: 10px;"></h3>
+                    <p id="detailMeta" style="color: #666; font-size: 13px; margin-bottom: 15px;"></p>
+                    <div id="detailContent" style="background: #f8f9fa; padding: 15px; border-radius: 6px; max-height: 400px; overflow-y: auto; line-height: 1.6;"></div>
+                </div>
+            </div>
+
+            <!-- Search Tab -->
+            <div id="search" class="tab-content">
+                <div class="message" id="searchMsg"></div>
+                <div class="form-group">
+                    <label>User ID</label>
+                    <input type="number" id="searchUserId" placeholder="Your user ID">
+                </div>
+                <div class="form-group">
+                    <label>Search Query</label>
+                    <textarea id="searchQuery" placeholder="What are you looking for?" rows="3"></textarea>
+                </div>
+                <button onclick="handleSearch()">Search</button>
+                <div id="searchResults" style="margin-top: 20px;"></div>
+            </div>
+
+            <!-- Chat Tab -->
+            <div id="chat" class="tab-content">
+                <div class="message" id="chatMsg"></div>
+                
+                <div style="margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; padding: 15px;">
+                    <div class="form-group">
+                        <label>User ID</label>
+                        <input type="number" id="chatUserId" placeholder="Your user ID">
+                    </div>
+                    <div class="form-group">
+                        <label>Use LLM (AI)?</label>
+                        <select id="useLLM" style="width: 100%; padding: 10px;">
+                            <option value="true">Yes - GPT-3.5 Turbo (requires API key)</option>
+                            <option value="false">No - Just show document excerpts</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="chatContainer" style="background: #f8f9fa; border-radius: 6px; height: 300px; overflow-y: auto; padding: 15px; margin-bottom: 15px; display: flex; flex-direction: column;">
+                    <div id="chatMessages" style="flex: 1; overflow-y: auto; margin-bottom: 15px;"></div>
+                </div>
+
+                <div class="form-group">
+                    <textarea id="chatInput" placeholder="Ask a question about your documents..." rows="2" onkeypress="handleChatKeypress(event)"></textarea>
+                </div>
+                <button onclick="handleChat()">Send Message</button>
+                
+                <div id="chatSources" style="margin-top: 15px; padding: 10px; background: #e7f3ff; border-radius: 6px; border-left: 4px solid #2196F3; display: none;">
+                    <strong style="color: #1976D2;">📚 Sources:</strong>
+                    <div id="sourcesList" style="margin-top: 8px; font-size: 13px; color: #555;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+            document.getElementById(tab).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function switchAuthTab(tab) {
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const loginBtn = document.getElementById('loginBtn');
+            const registerBtn = document.getElementById('registerBtn');
+
+            if (tab === 'login') {
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+                loginBtn.style.background = '#667eea';
+                loginBtn.style.color = 'white';
+                registerBtn.style.background = '#f8f9fa';
+                registerBtn.style.color = '#666';
+            } else {
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+                loginBtn.style.background = '#f8f9fa';
+                loginBtn.style.color = '#666';
+                registerBtn.style.background = '#667eea';
+                registerBtn.style.color = 'white';
+            }
+        }
+
+        function showMessage(elementId, message, type) {
+            const el = document.getElementById(elementId);
+            el.className = 'message ' + type;
+            el.innerHTML = (type === 'success' ? '✓ ' : '✗ ') + message;
+        }
+
+        async function handleLogin() {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            if (!username || !password) {
+                showMessage('loginMsg', 'Please fill all fields', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showMessage('loginMsg', `Welcome ${username}! User ID: ${data.user_id}`, 'success');
+                    document.getElementById('userId').value = data.user_id;
+                    document.getElementById('docsUserId').value = data.user_id;
+                    document.getElementById('searchUserId').value = data.user_id;
+                } else {
+                    showMessage('loginMsg', data.error, 'error');
+                }
+            } catch (err) {
+                showMessage('loginMsg', 'Login failed: ' + err.message, 'error');
+            }
+        }
+
+        async function handleRegister() {
+            const username = document.getElementById('regUsername').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+
+            if (!username || !email || !password) {
+                showMessage('registerMsg', 'Please fill all fields', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showMessage('registerMsg', 'Registration successful! Please login.', 'success');
+                    setTimeout(() => switchAuthTab('login'), 1500);
+                } else {
+                    showMessage('registerMsg', data.error, 'error');
+                }
+            } catch (err) {
+                showMessage('registerMsg', 'Registration failed: ' + err.message, 'error');
+            }
+        }
+
+        async function handleAddUrl() {
+            const user_id = document.getElementById('userId').value;
+            const url = document.getElementById('addUrl').value;
+
+            if (!user_id || !url) {
+                showMessage('addMsg', 'Please fill all fields', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/add-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: parseInt(user_id), url })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showMessage('addMsg', data.message, 'success');
+                    document.getElementById('addUrl').value = '';
+                } else {
+                    showMessage('addMsg', data.error, 'error');
+                }
+            } catch (err) {
+                showMessage('addMsg', 'Error: ' + err.message, 'error');
+            }
+        }
+
+        async function handleFileUpload() {
+            const user_id = document.getElementById('userId').value;
+            const file = document.getElementById('uploadFile').files[0];
+
+            if (!user_id || !file) {
+                showMessage('addMsg', 'Please select file and enter user ID', 'error');
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('user_id', user_id);
+                formData.append('file', file);
+
+                const response = await fetch('/api/upload-file', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showMessage('addMsg', data.message, 'success');
+                    document.getElementById('uploadFile').value = '';
+                } else {
+                    showMessage('addMsg', data.error, 'error');
+                }
+            } catch (err) {
+                showMessage('addMsg', 'Upload failed: ' + err.message, 'error');
+            }
+        }
+
+        async function handleListDocs() {
+            const user_id = document.getElementById('docsUserId').value;
+
+            if (!user_id) {
+                showMessage('docsMsg', 'Please enter user ID', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/documents/${user_id}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const list = document.getElementById('docsList');
+                    if (data.documents.length === 0) {
+                        list.innerHTML = '<p style="color: #999;">No documents yet</p>';
+                    } else {
+                        list.innerHTML = data.documents.map(doc => `
+                            <div class="document-item" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;" onclick="viewDocument(${doc.id})">
+                                <div style="flex: 1;">
+                                    <h4>${doc.title}</h4>
+                                    <p>Type: ${doc.source_type === 'url' ? '🌐 URL' : '📄 File'}</p>
+                                    <p>Added: ${new Date(doc.created_at).toLocaleDateString()}</p>
+                                </div>
+                                <button onclick="event.stopPropagation(); viewDocument(${doc.id})" style="background: #667eea; padding: 8px 15px; font-size: 12px; margin-left: 10px;">View</button>
+                            </div>
+                        `).join('');
+                    }
+                } else {
+                    showMessage('docsMsg', data.error, 'error');
+                }
+            } catch (err) {
+                showMessage('docsMsg', 'Error: ' + err.message, 'error');
+            }
+        }
+
+        async function handleSearch() {
+            const user_id = document.getElementById('searchUserId').value;
+            const query = document.getElementById('searchQuery').value;
+
+            if (!user_id || !query) {
+                showMessage('searchMsg', 'Please fill all fields', 'error');
+                return;
+            }
+
+            try {
+                document.getElementById('searchResults').innerHTML = '<div class="loading">Searching...</div>';
+
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        user_id: parseInt(user_id),
+                        query,
+                        num_results: 5
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const results = document.getElementById('searchResults');
+                    if (data.results.length === 0) {
+                        results.innerHTML = '<p style="color: #999;">No results found</p>';
+                    } else {
+                        results.innerHTML = data.results.map((result, idx) => `
+                            <div class="search-result">
+                                <h5>${idx + 1}. ${result.metadata.title}</h5>
+                                <p>${result.document}</p>
+                            </div>
+                        `).join('');
+                    }
+                } else {
+                    showMessage('searchMsg', data.error, 'error');
+                    document.getElementById('searchResults').innerHTML = '';
+                }
+            } catch (err) {
+                showMessage('searchMsg', 'Search failed: ' + err.message, 'error');
+                document.getElementById('searchResults').innerHTML = '';
+            }
+        }
+
+        async function viewDocument(docId) {
+            try {
+                const response = await fetch(`/api/document/${docId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('docsList').style.display = 'none';
+                    document.getElementById('docDetail').style.display = 'block';
+                    
+                    document.getElementById('detailTitle').textContent = data.document.title;
+                    
+                    const type = data.document.source_type === 'url' ? '🌐 URL' : '📄 File';
+                    const source = data.document.source_url || data.document.filename || 'N/A';
+                    document.getElementById('detailMeta').innerHTML = `
+                        <strong>Type:</strong> ${type} | 
+                        <strong>Source:</strong> ${source} | 
+                        <strong>Added:</strong> ${new Date(data.document.created_at).toLocaleDateString()}
+                    `;
+                    
+                    document.getElementById('detailContent').textContent = data.document.content || data.preview;
+                } else {
+                    alert('Error loading document: ' + data.error);
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        function closeDocDetail() {
+            document.getElementById('docsList').style.display = 'block';
+            document.getElementById('docDetail').style.display = 'none';
+        }
+
+        // Chat functionality
+        let chatHistory = [];
+
+        async function handleChat() {
+            const user_id = document.getElementById('chatUserId').value;
+            const question = document.getElementById('chatInput').value;
+            const use_llm = document.getElementById('useLLM').value === 'true';
+
+            if (!user_id || !question) {
+                showMessage('chatMsg', 'Please enter user ID and question', 'error');
+                return;
+            }
+
+            try {
+                // Add user message to chat
+                addChatMessage(question, 'user');
+                document.getElementById('chatInput').value = '';
+
+                // Send to API
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: parseInt(user_id),
+                        question,
+                        chat_history: chatHistory,
+                        use_llm
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    addChatMessage(data.answer, 'assistant');
+                    
+                    // Add to history
+                    chatHistory.push({ role: 'user', content: question });
+                    chatHistory.push({ role: 'assistant', content: data.answer });
+                    
+                    // Show sources
+                    if (data.sources) {
+                        document.getElementById('chatSources').style.display = 'block';
+                        document.getElementById('sourcesList').innerHTML = data.sources
+                            .map(s => `<div>• ${s}</div>`).join('');
+                    }
+                } else {
+                    addChatMessage(`Error: ${data.error}`, 'error');
+                }
+            } catch (err) {
+                addChatMessage(`Error: ${err.message}`, 'error');
+            }
+        }
+
+        function handleChatKeypress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                handleChat();
+            }
+        }
+
+        function addChatMessage(message, role) {
+            const container = document.getElementById('chatMessages');
+            const msgDiv = document.createElement('div');
+            msgDiv.style.marginBottom = '12px';
+            msgDiv.style.display = 'flex';
+            msgDiv.style.justifyContent = role === 'user' ? 'flex-end' : 'flex-start';
+
+            const bubble = document.createElement('div');
+            bubble.style.maxWidth = '80%';
+            bubble.style.padding = '10px 12px';
+            bubble.style.borderRadius = '8px';
+            bubble.style.fontSize = '13px';
+            bubble.style.lineHeight = '1.4';
+
+            if (role === 'user') {
+                bubble.style.background = '#667eea';
+                bubble.style.color = 'white';
+            } else if (role === 'assistant') {
+                bubble.style.background = '#e8eef7';
+                bubble.style.color = '#333';
+            } else {
+                bubble.style.background = '#ffebee';
+                bubble.style.color = '#c62828';
+            }
+
+            bubble.textContent = message;
+            msgDiv.appendChild(bubble);
+            container.appendChild(msgDiv);
+
+            // Auto scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function clearChat() {
+            document.getElementById('chatMessages').innerHTML = '';
+            document.getElementById('chatSources').style.display = 'none';
+            chatHistory = [];
+        }
+    </script>
+</body>
+</html>
