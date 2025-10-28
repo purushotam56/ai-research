@@ -100,17 +100,30 @@ class VectorStore:
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
-    def search_documents(self, query, user_id=None, num_results=5):
+    def search_documents(self, query, user_id=None, num_results=5, doc_id=None):
         """
         Search documents by query.
         If user_id provided, search only user's documents.
+        If doc_id provided, search only within that document.
         Returns list of matching documents with scores.
         """
         try:
             # Build where filter for user if specified
             where_filter = None
-            if user_id:
+            if user_id and doc_id:
+                # Filter by both user and specific document
+                where_filter = {
+                    '$and': [
+                        {'user_id': {'$eq': str(user_id)}},
+                        {'document_id': {'$eq': str(doc_id)}}
+                    ]
+                }
+            elif user_id:
+                # Filter by user only
                 where_filter = {'user_id': {'$eq': str(user_id)}}
+            elif doc_id:
+                # Filter by document only
+                where_filter = {'document_id': {'$eq': str(doc_id)}}
             
             # Search
             results = self.collection.query(
@@ -124,9 +137,9 @@ class VectorStore:
             
             # Format results
             formatted_results = []
-            for i, doc_id in enumerate(results['ids'][0]):
+            for i, doc_id_result in enumerate(results['ids'][0]):
                 formatted_results.append({
-                    'id': doc_id,
+                    'id': doc_id_result,
                     'document': results['documents'][0][i],
                     'metadata': results['metadatas'][0][i],
                     'distance': results['distances'][0][i] if results['distances'] else None

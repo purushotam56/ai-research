@@ -2,6 +2,7 @@ import os
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+from urllib.parse import urlparse
 
 # Import custom modules
 from database import db, User, Document
@@ -149,6 +150,10 @@ def api_add_url():
             return jsonify(scrape_result), 400
         
         title = scrape_result['title']
+        # Ensure title is never None or empty
+        if not title:
+            title = urlparse(url).netloc or "Webpage"
+        
         content = extract_meaningful_content(scrape_result['content'])
         
         # Store in database
@@ -218,7 +223,19 @@ def api_upload_file():
             return jsonify(process_result), 400
         
         title = process_result['title']
-        content = extract_meaningful_content(process_result['content'])
+        raw_content = process_result['content']
+        
+        # Log for debugging
+        print(f"[UPLOAD] PDF extraction result:")
+        print(f"  - Title: {title}")
+        print(f"  - Raw content length: {len(raw_content)} chars")
+        if raw_content:
+            print(f"  - Content preview: {raw_content[:100]}...")
+        else:
+            print(f"  - WARNING: Empty content from PDF!")
+        
+        content = extract_meaningful_content(raw_content)
+        print(f"  - After filtering: {len(content)} chars")
         
         # Store in database
         doc = Document(
@@ -292,6 +309,7 @@ def api_chat():
     doc_id = data.get('doc_id')  # Optional: specific document
     chat_history = data.get('chat_history', [])
     use_llm = data.get('use_llm', True)
+    llm_model = data.get('llm_model', 'openai-gpt35')  # New: selected model from UI
     
     if not user_id or not question:
         return jsonify({'success': False, 'error': 'user_id and question required'}), 400
@@ -300,8 +318,14 @@ def api_chat():
         if not vector_store:
             return jsonify({'success': False, 'error': 'Vector store not available'}), 400
         
+        # Verify document belongs to user if doc_id is specified
+        if doc_id:
+            doc = Document.query.get(doc_id)
+            if not doc or doc.user_id != user_id:
+                return jsonify({'success': False, 'error': 'Document not found or access denied'}), 403
+        
         # Search for relevant documents
-        search_result = vector_store.search_documents(question, user_id, num_results=5)
+        search_result = vector_store.search_documents(question, user_id, num_results=5, doc_id=doc_id)
         
         if not search_result.get('success') or not search_result.get('results'):
             return jsonify({
@@ -315,14 +339,16 @@ def api_chat():
         # Get chatbot and generate answer
         if use_llm:
             if chatbot:
-                result = chatbot.generate_answer(question, context_docs, user_id)
+                # Pass the selected model to the chatbot
+                result = chatbot.generate_answer(question, context_docs, user_id, llm_model=llm_model)
             else:
                 # Fallback to document search
                 result = {
                     'answer': f"LLM not available. Here's relevant content:\n\n{context_docs[0][:300]}...",
                     'status': 'fallback',
                     'provider': 'fallback',
-                    'sources': [c['metadata'].get('title', 'Unknown') for c in search_result['results'][:3]]
+                    'sources': [c['metadata'].get('title', 'Unknown') for c in search_result['results'][:3]],
+                    'model': None
                 }
         else:
             # Use document search only
@@ -330,7 +356,8 @@ def api_chat():
                 'answer': context_docs[0][:500] + "...",
                 'status': 'document-search',
                 'provider': 'document-search',
-                'sources': [c['metadata'].get('title', 'Unknown') for c in search_result['results'][:3]]
+                'sources': [c['metadata'].get('title', 'Unknown') for c in search_result['results'][:3]],
+                'model': None
             }
         
         return jsonify({
@@ -338,7 +365,8 @@ def api_chat():
             'answer': result.get('answer'),
             'provider': result.get('provider', 'unknown'),
             'status': result.get('status', 'success'),
-            'sources': result.get('sources', [])
+            'sources': result.get('sources', []),
+            'model': result.get('model', llm_model)
         }), 200
     
     except Exception as e:

@@ -53,6 +53,7 @@ class Document(db.Model):
             'source_type': self.source_type,
             'source_url': self.source_url,
             'filename': self.filename,
+            'content': self.content,
             'created_at': self.created_at.isoformat(),
             'has_vectors': bool(self.vector_ids)
         }

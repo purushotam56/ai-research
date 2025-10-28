@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RAG Document Manager</title>
+    <!-- Markdown rendering library -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -155,6 +158,105 @@
             border: 1px solid #f5c6cb;
         }
 
+        /* Markdown rendering styles */
+        .markdown-content {
+            word-wrap: break-word;
+        }
+
+        .markdown-content h1, .markdown-content h2, .markdown-content h3, 
+        .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+            margin-top: 12px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .markdown-content h1 { font-size: 1.5em; }
+        .markdown-content h2 { font-size: 1.3em; }
+        .markdown-content h3 { font-size: 1.1em; }
+        .markdown-content h4 { font-size: 1em; }
+
+        .markdown-content p {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        .markdown-content strong {
+            font-weight: 600;
+        }
+
+        .markdown-content em {
+            font-style: italic;
+        }
+
+        .markdown-content ul, .markdown-content ol {
+            margin-left: 20px;
+            margin-bottom: 8px;
+        }
+
+        .markdown-content li {
+            margin-bottom: 4px;
+        }
+
+        .markdown-content code {
+            background: rgba(0, 0, 0, 0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .markdown-content pre {
+            background: rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+            padding: 12px;
+            overflow-x: auto;
+            margin-bottom: 12px;
+        }
+
+        .markdown-content pre code {
+            background: none;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .markdown-content blockquote {
+            border-left: 4px solid rgba(0, 0, 0, 0.2);
+            padding-left: 12px;
+            margin-left: 0;
+            margin-bottom: 8px;
+            color: rgba(0, 0, 0, 0.6);
+            font-style: italic;
+        }
+
+        .markdown-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 12px;
+            font-size: 0.9em;
+        }
+
+        .markdown-content table td, .markdown-content table th {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .markdown-content table th {
+            background: rgba(0, 0, 0, 0.05);
+            font-weight: 600;
+        }
+
+        .markdown-content a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .markdown-content a:hover {
+            text-decoration: underline;
+        }
+
         .document-item {
             background: #f8f9fa;
             padding: 15px;
@@ -300,9 +402,9 @@
             <div id="add" class="tab-content">
                 <div class="message" id="addMsg"></div>
                 
-                <div style="margin-bottom: 20px;">
-                    <label>User ID</label>
-                    <input type="number" id="userId" placeholder="From login (required)">
+                <div style="margin-bottom: 20px; padding: 12px; background: #f0f3ff; border-radius: 6px; border-left: 4px solid #667eea;">
+                    <label style="color: #667eea; font-weight: 600;">👤 Logged In As</label>
+                    <p style="margin-top: 5px; color: #333; font-size: 14px;" data-user-id-display>Login to add documents</p>
                 </div>
 
                 <h3 style="font-size: 16px; margin-bottom: 15px;">Add from URL</h3>
@@ -329,15 +431,20 @@
             <!-- Documents Tab -->
             <div id="docs" class="tab-content">
                 <div class="message" id="docsMsg"></div>
-                <div class="form-group">
-                    <label>User ID</label>
-                    <input type="number" id="docsUserId" placeholder="Your user ID">
+                
+                <div style="margin-bottom: 20px; padding: 12px; background: #f0f3ff; border-radius: 6px; border-left: 4px solid #667eea;">
+                    <label style="color: #667eea; font-weight: 600;">👤 Your Documents</label>
+                    <p style="margin-top: 5px; color: #333; font-size: 14px;" data-user-id-display>Login to view documents</p>
                 </div>
-                <button onclick="handleListDocs()">Load Documents</button>
+                
+                <button onclick="handleListDocs()" style="margin-bottom: 15px;">🔄 Refresh Documents</button>
                 <div id="docsList" style="margin-top: 20px;"></div>
                 <div id="docDetail" style="display: none; margin-top: 20px;">
                     <button onclick="closeDocDetail()" style="background: #6c757d; margin-bottom: 15px;">← Back</button>
-                    <h3 id="detailTitle" style="margin-bottom: 10px;"></h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 id="detailTitle" style="margin: 0;"></h3>
+                        <button id="deleteDetailBtn" onclick="deleteCurrentDocument()" style="background: #dc3545; width: auto; padding: 8px 16px; font-size: 13px;">🗑️ Delete</button>
+                    </div>
                     <p id="detailMeta" style="color: #666; font-size: 13px; margin-bottom: 15px;"></p>
                     <div id="detailContent" style="background: #f8f9fa; padding: 15px; border-radius: 6px; max-height: 400px; overflow-y: auto; line-height: 1.6;"></div>
                 </div>
@@ -346,10 +453,12 @@
             <!-- Search Tab -->
             <div id="search" class="tab-content">
                 <div class="message" id="searchMsg"></div>
-                <div class="form-group">
-                    <label>User ID</label>
-                    <input type="number" id="searchUserId" placeholder="Your user ID">
+                
+                <div style="margin-bottom: 20px; padding: 12px; background: #f0f3ff; border-radius: 6px; border-left: 4px solid #667eea;">
+                    <label style="color: #667eea; font-weight: 600;">🔍 Search Your Documents</label>
+                    <p style="margin-top: 5px; color: #333; font-size: 14px;" data-user-id-display>Login to search</p>
                 </div>
+                
                 <div class="form-group">
                     <label>Search Query</label>
                     <textarea id="searchQuery" placeholder="What are you looking for?" rows="3"></textarea>
@@ -363,15 +472,26 @@
                 <div class="message" id="chatMsg"></div>
                 
                 <div style="margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; padding: 15px;">
+                    <div style="margin-bottom: 15px; padding: 10px; background: #f0f3ff; border-radius: 6px; border-left: 4px solid #667eea;">
+                        <p style="color: #667eea; font-weight: 600; margin: 0; font-size: 13px;">👤 Logged In As</p>
+                        <p style="margin-top: 5px; color: #333; font-size: 12px;" data-user-id-display>Login to chat</p>
+                    </div>
+                    
                     <div class="form-group">
-                        <label>User ID</label>
-                        <input type="number" id="chatUserId" placeholder="Your user ID">
+                        <label>Select Document (Optional - leave blank to search all)</label>
+                        <select id="chatDocId" style="width: 100%; padding: 10px;">
+                            <option value="">📚 All Documents</option>
+                        </select>
                     </div>
                     <div class="form-group">
-                        <label>Use LLM (AI)?</label>
-                        <select id="useLLM" style="width: 100%; padding: 10px;">
-                            <option value="true">Yes - GPT-3.5 Turbo (requires API key)</option>
-                            <option value="false">No - Just show document excerpts</option>
+                        <label>🤖 LLM Model (AI Provider)</label>
+                        <select id="llmModel" style="width: 100%; padding: 10px;">
+                            <option value="openai-gpt35">1. OpenAI - GPT-3.5 Turbo (Fast, High Quality)</option>
+                            <option value="openai-gpt4">2. OpenAI - GPT-4 (Advanced, Slower)</option>
+                            <option value="perplexity-sonar">3. Perplexity - Sonar (Fast, Free tier available)</option>
+                            <option value="perplexity-sonar-pro">4. Perplexity - Sonar Pro (Advanced reasoning)</option>
+                            <option value="ibm-granite">5. IBM Watson - Granite 3.3 (Good, Free tier)</option>
+                            <option value="document-search">📄 Document Search Only (No AI)</option>
                         </select>
                     </div>
                 </div>
@@ -424,6 +544,45 @@
             }
         }
 
+        // Helper functions for user session management
+        function getCurrentUserId() {
+            return localStorage.getItem('user_id');
+        }
+
+        function getCurrentUsername() {
+            return localStorage.getItem('username');
+        }
+
+        function isLoggedIn() {
+            return localStorage.getItem('user_id') !== null;
+        }
+
+        function updateUserIdInUI(userId, username) {
+            // Update all read-only user ID displays
+            document.querySelectorAll('[data-user-id-display]').forEach(el => {
+                el.textContent = `${username} (ID: ${userId})`;
+            });
+            
+            // Load documents list for chat tab
+            loadChatDocuments();
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('user_id');
+            localStorage.removeItem('username');
+            
+            // Clear all input fields
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('regUsername').value = '';
+            document.getElementById('regEmail').value = '';
+            document.getElementById('regPassword').value = '';
+            
+            // Show auth tab
+            switchTab('auth');
+            showMessage('loginMsg', 'Logged out successfully', 'success');
+        }
+
         function showMessage(elementId, message, type) {
             const el = document.getElementById(elementId);
             el.className = 'message ' + type;
@@ -448,10 +607,18 @@
 
                 const data = await response.json();
                 if (data.success) {
+                    // Store user_id in localStorage
+                    localStorage.setItem('user_id', data.user_id);
+                    localStorage.setItem('username', username);
+                    
                     showMessage('loginMsg', `Welcome ${username}! User ID: ${data.user_id}`, 'success');
-                    document.getElementById('userId').value = data.user_id;
-                    document.getElementById('docsUserId').value = data.user_id;
-                    document.getElementById('searchUserId').value = data.user_id;
+                    
+                    // Update UI with user info
+                    updateUserIdInUI(data.user_id, username);
+                    
+                    // Clear input fields
+                    document.getElementById('loginUsername').value = '';
+                    document.getElementById('loginPassword').value = '';
                 } else {
                     showMessage('loginMsg', data.error, 'error');
                 }
@@ -490,11 +657,11 @@
         }
 
         async function handleAddUrl() {
-            const user_id = document.getElementById('userId').value;
+            const user_id = getCurrentUserId();
             const url = document.getElementById('addUrl').value;
 
             if (!user_id || !url) {
-                showMessage('addMsg', 'Please fill all fields', 'error');
+                showMessage('addMsg', 'Please login and enter URL', 'error');
                 return;
             }
 
@@ -518,11 +685,11 @@
         }
 
         async function handleFileUpload() {
-            const user_id = document.getElementById('userId').value;
+            const user_id = getCurrentUserId();
             const file = document.getElementById('uploadFile').files[0];
 
             if (!user_id || !file) {
-                showMessage('addMsg', 'Please select file and enter user ID', 'error');
+                showMessage('addMsg', 'Please login and select a file', 'error');
                 return;
             }
 
@@ -549,10 +716,10 @@
         }
 
         async function handleListDocs() {
-            const user_id = document.getElementById('docsUserId').value;
+            const user_id = getCurrentUserId();
 
             if (!user_id) {
-                showMessage('docsMsg', 'Please enter user ID', 'error');
+                showMessage('docsMsg', 'Please login first', 'error');
                 return;
             }
 
@@ -572,7 +739,10 @@
                                     <p>Type: ${doc.source_type === 'url' ? '🌐 URL' : '📄 File'}</p>
                                     <p>Added: ${new Date(doc.created_at).toLocaleDateString()}</p>
                                 </div>
-                                <button onclick="event.stopPropagation(); viewDocument(${doc.id})" style="background: #667eea; padding: 8px 15px; font-size: 12px; margin-left: 10px;">View</button>
+                                <div style="display: flex; gap: 8px;">
+                                    <button onclick="event.stopPropagation(); viewDocument(${doc.id})" style="background: #667eea; padding: 8px 15px; font-size: 12px;">View</button>
+                                    <button onclick="event.stopPropagation(); deleteDocument(${doc.id})" style="background: #dc3545; padding: 8px 15px; font-size: 12px;">Delete</button>
+                                </div>
                             </div>
                         `).join('');
                     }
@@ -585,11 +755,11 @@
         }
 
         async function handleSearch() {
-            const user_id = document.getElementById('searchUserId').value;
+            const user_id = getCurrentUserId();
             const query = document.getElementById('searchQuery').value;
 
             if (!user_id || !query) {
-                showMessage('searchMsg', 'Please fill all fields', 'error');
+                showMessage('searchMsg', 'Please login and enter a search query', 'error');
                 return;
             }
 
@@ -636,6 +806,8 @@
                 const data = await response.json();
 
                 if (data.success) {
+                    currentViewingDocId = docId;  // Store for delete function
+                    
                     document.getElementById('docsList').style.display = 'none';
                     document.getElementById('docDetail').style.display = 'block';
                     
@@ -663,16 +835,82 @@
             document.getElementById('docDetail').style.display = 'none';
         }
 
+        let currentViewingDocId = null;
+
+        async function deleteDocument(docId) {
+            if (!confirm('Are you sure you want to delete this document?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/document/${docId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showMessage('docsMsg', 'Document deleted successfully', 'success');
+                    handleListDocs();
+                    closeDocDetail();
+                } else {
+                    showMessage('docsMsg', data.error, 'error');
+                }
+            } catch (err) {
+                showMessage('docsMsg', 'Error deleting document: ' + err.message, 'error');
+            }
+        }
+
+        async function deleteCurrentDocument() {
+            if (currentViewingDocId) {
+                deleteDocument(currentViewingDocId);
+            }
+        }
+
         // Chat functionality
         let chatHistory = [];
 
+        async function loadChatDocuments() {
+            const user_id = getCurrentUserId();
+            
+            if (!user_id) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/documents/${user_id}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const select = document.getElementById('chatDocId');
+                    const currentValue = select.value;
+                    
+                    // Keep "All Documents" option
+                    select.innerHTML = '<option value="">📚 All Documents</option>';
+                    
+                    // Add user's documents
+                    data.documents.forEach(doc => {
+                        const option = document.createElement('option');
+                        option.value = doc.id;
+                        option.textContent = `${doc.source_type === 'url' ? '🌐' : '📄'} ${doc.title}`;
+                        select.appendChild(option);
+                    });
+
+                    // Restore previous selection if it still exists
+                    select.value = currentValue;
+                }
+            } catch (err) {
+                console.error('Error loading documents:', err);
+            }
+        }
+
         async function handleChat() {
-            const user_id = document.getElementById('chatUserId').value;
+            const user_id = getCurrentUserId();
             const question = document.getElementById('chatInput').value;
-            const use_llm = document.getElementById('useLLM').value === 'true';
+            const doc_id = document.getElementById('chatDocId').value;
+            const selectedModel = document.getElementById('llmModel').value;
 
             if (!user_id || !question) {
-                showMessage('chatMsg', 'Please enter user ID and question', 'error');
+                showMessage('chatMsg', 'Please login and enter a question', 'error');
                 return;
             }
 
@@ -681,6 +919,9 @@
                 addChatMessage(question, 'user');
                 document.getElementById('chatInput').value = '';
 
+                // Determine whether to use LLM based on selected model
+                const use_llm = selectedModel !== 'document-search';
+
                 // Send to API
                 const response = await fetch('/api/chat', {
                     method: 'POST',
@@ -688,8 +929,10 @@
                     body: JSON.stringify({
                         user_id: parseInt(user_id),
                         question,
+                        doc_id: doc_id ? parseInt(doc_id) : null,
                         chat_history: chatHistory,
-                        use_llm
+                        use_llm,
+                        llm_model: selectedModel  // Send selected model to backend
                     })
                 });
 
@@ -702,11 +945,30 @@
                     chatHistory.push({ role: 'user', content: question });
                     chatHistory.push({ role: 'assistant', content: data.answer });
                     
-                    // Show sources
+                    // Show sources and provider info with model details
                     if (data.sources) {
                         document.getElementById('chatSources').style.display = 'block';
-                        document.getElementById('sourcesList').innerHTML = data.sources
-                            .map(s => `<div>• ${s}</div>`).join('');
+                        
+                        // Map provider to friendly name
+                        const providerMap = {
+                            'openai': '🤖 OpenAI',
+                            'perplexity': '🔍 Perplexity',
+                            'ibm': '🦾 IBM Watson',
+                            'fallback': '📚 Document Search',
+                            'document-search': '� Document Search'
+                        };
+                        
+                        const providerBadge = providerMap[data.provider] || '❓ Unknown';
+                        const modelInfo = data.model ? `(${data.model})` : '';
+                        
+                        document.getElementById('sourcesList').innerHTML = `
+                            <div style="margin-bottom: 8px;">
+                                <strong>Provider:</strong> ${providerBadge} ${modelInfo} | 
+                                <strong>Status:</strong> ${data.status}
+                            </div>
+                            <div><strong>Documents:</strong></div>
+                            ${data.sources.map(s => `<div>• ${s}</div>`).join('')}
+                        `;
                     }
                 } else {
                     addChatMessage(`Error: ${data.error}`, 'error');
@@ -740,15 +1002,30 @@
             if (role === 'user') {
                 bubble.style.background = '#667eea';
                 bubble.style.color = 'white';
+                // For user messages, just set text (no markdown needed)
+                bubble.textContent = message;
             } else if (role === 'assistant') {
                 bubble.style.background = '#e8eef7';
                 bubble.style.color = '#333';
+                
+                // For assistant messages, render markdown
+                try {
+                    // Convert markdown to HTML using marked library
+                    const htmlContent = marked.parse(message);
+                    // Sanitize HTML to prevent XSS attacks
+                    const cleanHtml = DOMPurify.sanitize(htmlContent);
+                    bubble.innerHTML = cleanHtml;
+                    bubble.className = 'markdown-content';
+                } catch (e) {
+                    console.error('Markdown parsing error:', e);
+                    bubble.textContent = message;
+                }
             } else {
                 bubble.style.background = '#ffebee';
                 bubble.style.color = '#c62828';
+                bubble.textContent = message;
             }
 
-            bubble.textContent = message;
             msgDiv.appendChild(bubble);
             container.appendChild(msgDiv);
 
@@ -761,6 +1038,49 @@
             document.getElementById('chatSources').style.display = 'none';
             chatHistory = [];
         }
+
+        // Initialize session on page load
+        function initializeSession() {
+            if (isLoggedIn()) {
+                const userId = getCurrentUserId();
+                const username = getCurrentUsername();
+                console.log(`[Auth] Restoring session: ${username} (${userId})`);
+                
+                // Update UI to show logged-in state
+                updateUserIdInUI(userId, username);
+                
+                // Restore selected LLM model
+                const savedModel = localStorage.getItem('selected_llm_model') || 'openai-gpt35';
+                document.getElementById('llmModel').value = savedModel;
+                console.log(`[Chat] Restored LLM model: ${savedModel}`);
+                
+                // Switch to main app (skip auth tab)
+                switchTab('add-data');
+                showMessage('loginMsg', `Welcome back, ${username}!`, 'success');
+            } else {
+                // Show auth tab if not logged in
+                switchTab('auth');
+            }
+        }
+
+        // Save selected model when it changes
+        function saveSelectedModel() {
+            const model = document.getElementById('llmModel').value;
+            localStorage.setItem('selected_llm_model', model);
+            console.log(`[Chat] Saved LLM model: ${model}`);
+        }
+
+        // Add event listener to model selector and initialize session
+        document.addEventListener('DOMContentLoaded', function() {
+            // First, restore session from localStorage
+            initializeSession();
+            
+            // Then set up model selector change listener
+            const modelSelector = document.getElementById('llmModel');
+            if (modelSelector) {
+                modelSelector.addEventListener('change', saveSelectedModel);
+            }
+        });
     </script>
 </body>
 </html>
