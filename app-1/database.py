@@ -36,15 +36,20 @@ class Document(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('documents.id'), nullable=True, index=True)  # NULL for main URL, set for related URLs
     title = db.Column(db.String(255), nullable=False)
     source_type = db.Column(db.String(20), nullable=False)  # 'url' or 'file'
     source_url = db.Column(db.String(500), nullable=True)
     filename = db.Column(db.String(255), nullable=True)
     content = db.Column(db.Text, nullable=False)
     content_summary = db.Column(db.Text, nullable=True)
+    url_grouped_content = db.Column(db.Text, nullable=True)  # JSON: {url: {title, content}, ...}
     vector_ids = db.Column(db.String(500), nullable=True)  # comma-separated ChromaDB IDs
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationship for parent-child hierarchy
+    children = db.relationship('Document', remote_side=[id], backref='parent', cascade='all, delete-orphan', single_parent=True)
     
     def to_dict(self):
         return {
@@ -54,6 +59,7 @@ class Document(db.Model):
             'source_url': self.source_url,
             'filename': self.filename,
             'content': self.content,
+            'parent_id': self.parent_id,
             'created_at': self.created_at.isoformat(),
             'has_vectors': bool(self.vector_ids)
         }

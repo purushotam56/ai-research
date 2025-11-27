@@ -412,7 +412,41 @@
                     <label>URL</label>
                     <input type="url" id="addUrl" placeholder="https://example.com">
                 </div>
-                <button onclick="handleAddUrl()">Scrape & Add</button>
+                <button onclick="handleAddUrl()" id="scrapeBtn">Scrape & Add</button>
+                
+                <!-- URL Scraping Progress Section -->
+                <div id="scrapeProgress" style="display: none; margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 6px; border-left: 4px solid #667eea;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="font-weight: 600; color: #333;">Scraping Progress</label>
+                        <span id="progressPercent" style="font-size: 12px; color: #667eea; font-weight: 600;">0%</span>
+                    </div>
+                    
+                    <div style="width: 100%; height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; margin-bottom: 12px;">
+                        <div id="progressBar" style="height: 100%; background: #667eea; width: 0%; transition: width 0.3s ease;"></div>
+                    </div>
+                    
+                    <!-- Links Discovered -->
+                    <div style="margin-bottom: 10px;">
+                        <p style="margin: 0; font-size: 12px; color: #666;">
+                            <strong>Links Discovered:</strong> <span id="linksDiscovered">0</span>
+                        </p>
+                    </div>
+                    
+                    <!-- Current Scraping Status -->
+                    <div style="margin-bottom: 10px;">
+                        <p style="margin: 0; font-size: 12px; color: #666;">
+                            <strong>Currently Scraping:</strong> <span id="currentScraping" style="color: #667eea; font-weight: 500;">Main URL</span>
+                        </p>
+                    </div>
+                    
+                    <!-- Scrape List -->
+                    <div id="scrapeList" style="max-height: 150px; overflow-y: auto; background: white; padding: 8px; border-radius: 4px; font-size: 11px;">
+                        <div id="scrapeItems"></div>
+                    </div>
+                    
+                    <!-- Status Message -->
+                    <p id="scrapeStatus" style="margin: 10px 0 0 0; font-size: 12px; color: #666;"></p>
+                </div>
 
                 <hr style="margin: 25px 0; border: none; border-top: 1px solid #eee;">
 
@@ -486,12 +520,22 @@
                     <div class="form-group">
                         <label>🤖 LLM Model (AI Provider)</label>
                         <select id="llmModel" style="width: 100%; padding: 10px;">
-                            <option value="openai-gpt35">1. OpenAI - GPT-3.5 Turbo (Fast, High Quality)</option>
-                            <option value="openai-gpt4">2. OpenAI - GPT-4 (Advanced, Slower)</option>
-                            <option value="perplexity-sonar">3. Perplexity - Sonar (Fast, Free tier available)</option>
-                            <option value="perplexity-sonar-pro">4. Perplexity - Sonar Pro (Advanced reasoning)</option>
-                            <option value="ibm-granite">5. IBM Watson - Granite 3.3 (Good, Free tier)</option>
-                            <option value="document-search">📄 Document Search Only (No AI)</option>
+                            <optgroup label="🌐 Cloud-Based Models">
+                                <option value="openai-gpt35">1. OpenAI - GPT-3.5 Turbo (Fast, High Quality)</option>
+                                <option value="openai-gpt4">2. OpenAI - GPT-4 (Advanced, Slower)</option>
+                                <option value="perplexity-sonar">3. Perplexity - Sonar (Fast, Free tier available)</option>
+                                <option value="perplexity-sonar-pro">4. Perplexity - Sonar Pro (Advanced reasoning)</option>
+                                <option value="ibm-granite">5. IBM Watson - Granite 3.3 (Good, Free tier)</option>
+                            </optgroup>
+                            <optgroup label="💻 Offline Models (Local)">
+                                <option value="ollama-neural-chat">6. Ollama - Neural Chat (Fast, Local)</option>
+                                <option value="ollama-mistral">7. Ollama - Mistral (High Quality, Local)</option>
+                                <option value="ollama-llama2">8. Ollama - Llama 2 (Versatile, Local)</option>
+                                <option value="llamacpp-default">9. LlamaCpp - GGUF Model (Custom, Local)</option>
+                            </optgroup>
+                            <optgroup label="🔧 Other">
+                                <option value="document-search">📄 Document Search Only (No AI)</option>
+                            </optgroup>
                         </select>
                     </div>
                 </div>
@@ -665,22 +709,112 @@
                 return;
             }
 
+            // Show progress UI
+            const progressDiv = document.getElementById('scrapeProgress');
+            const scrapeBtn = document.getElementById('scrapeBtn');
+            progressDiv.style.display = 'block';
+            scrapeBtn.disabled = true;
+            scrapeBtn.style.opacity = '0.6';
+            
+            // Reset progress
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressPercent').textContent = '0%';
+            document.getElementById('linksDiscovered').textContent = '0';
+            document.getElementById('currentScraping').textContent = 'Main URL';
+            document.getElementById('scrapeItems').innerHTML = '';
+            document.getElementById('scrapeStatus').textContent = 'Starting scrape...';
+            
             try {
-                const response = await fetch('/api/add-url', {
+                const response = await fetch('/api/add-url-stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: parseInt(user_id), url })
                 });
 
                 const data = await response.json();
+                
+                // Process progress events if available
+                if (data.progress && Array.isArray(data.progress)) {
+                    for (const event of data.progress) {
+                        processProgressEvent(event);
+                    }
+                }
+                
                 if (data.success) {
-                    showMessage('addMsg', data.message, 'success');
+                    showMessage('addMsg', `✓ Added successfully! Scraped ${data.urls_scraped} related pages.`, 'success');
                     document.getElementById('addUrl').value = '';
+                    
+                    // Show final status
+                    const itemsDiv = document.getElementById('scrapeItems');
+                    itemsDiv.innerHTML = `<div style="padding: 8px; background: #e8f5e9; border-radius: 3px; color: #2e7d32;">✓ Successfully added with ${data.urls_scraped} pages</div>`;
+                    
+                    // Reload documents list
+                    loadChatDocuments();
                 } else {
-                    showMessage('addMsg', data.error, 'error');
+                    showMessage('addMsg', data.error || 'Failed to scrape URL', 'error');
                 }
             } catch (err) {
                 showMessage('addMsg', 'Error: ' + err.message, 'error');
+            } finally {
+                scrapeBtn.disabled = false;
+                scrapeBtn.style.opacity = '1';
+                // Hide progress after 3 seconds if successful
+                setTimeout(() => {
+                    if (document.querySelector('#addMsg .success')) {
+                        progressDiv.style.display = 'none';
+                    }
+                }, 3000);
+            }
+        }
+        
+        function processProgressEvent(event) {
+            const { type, data } = event;
+            const itemsDiv = document.getElementById('scrapeItems');
+            
+            if (type === 'links_discovered') {
+                document.getElementById('linksDiscovered').textContent = data.count;
+                if (data.count > 0) {
+                    const linksList = data.links.map(l => {
+                        const domain = new URL(l).pathname;
+                        return `<div style="padding: 4px; color: #666; border-bottom: 1px solid #eee;">• ${domain || l}</div>`;
+                    }).join('');
+                    itemsDiv.innerHTML = linksList;
+                }
+            } else if (type === 'scraping_progress') {
+                const { current, total, url, status } = data;
+                const percent = Math.round((current / total) * 100);
+                document.getElementById('progressBar').style.width = percent + '%';
+                document.getElementById('progressPercent').textContent = percent + '%';
+                
+                const urlDomain = new URL(url).pathname || url.split('/')[2];
+                document.getElementById('currentScraping').textContent = `${urlDomain}... (${current}/${total})`;
+                
+                // Add item to list
+                let statusIcon = '';
+                let statusColor = '';
+                if (status === 'scraping') {
+                    statusIcon = '⏳';
+                    statusColor = '#ff9800';
+                } else if (status === 'success') {
+                    statusIcon = '✓';
+                    statusColor = '#4caf50';
+                } else if (status === 'failed') {
+                    statusIcon = '✗';
+                    statusColor = '#f44336';
+                }
+                
+                const item = document.createElement('div');
+                item.style.cssText = `padding: 6px; border-bottom: 1px solid #eee; color: ${statusColor}; display: flex; justify-content: space-between;`;
+                item.innerHTML = `<span>${statusIcon} ${urlDomain}</span><span>${status}</span>`;
+                itemsDiv.appendChild(item);
+            } else if (type === 'scraping_complete') {
+                document.getElementById('scrapeStatus').textContent = `✓ Completed! Scraped ${data.total_urls} pages.`;
+                document.getElementById('progressBar').style.width = '100%';
+                document.getElementById('progressPercent').textContent = '100%';
+            } else if (type === 'scraping_error') {
+                document.getElementById('scrapeStatus').textContent = `✗ Error: ${data.error}`;
+                document.getElementById('progressBar').style.width = '0%';
+                document.getElementById('progressBar').style.background = '#f44336';
             }
         }
 
@@ -732,19 +866,51 @@
                     if (data.documents.length === 0) {
                         list.innerHTML = '<p style="color: #999;">No documents yet</p>';
                     } else {
-                        list.innerHTML = data.documents.map(doc => `
-                            <div class="document-item" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;" onclick="viewDocument(${doc.id})">
-                                <div style="flex: 1;">
-                                    <h4>${doc.title}</h4>
-                                    <p>Type: ${doc.source_type === 'url' ? '🌐 URL' : '📄 File'}</p>
-                                    <p>Added: ${new Date(doc.created_at).toLocaleDateString()}</p>
+                        // Filter to show only main documents (parent_id = null)
+                        const mainDocs = data.documents.filter(doc => doc.parent_id === null);
+                        const childDocs = data.documents.filter(doc => doc.parent_id !== null);
+                        
+                        // Group child docs by parent
+                        const docsByParent = {};
+                        childDocs.forEach(doc => {
+                            if (!docsByParent[doc.parent_id]) {
+                                docsByParent[doc.parent_id] = [];
+                            }
+                            docsByParent[doc.parent_id].push(doc);
+                        });
+                        
+                        list.innerHTML = mainDocs.map(doc => {
+                            const children = docsByParent[doc.id] || [];
+                            const childrenHtml = children.length > 0 ? `
+                                <div style="margin-top: 10px; padding-left: 20px; border-left: 3px solid #667eea;">
+                                    <p style="font-size: 12px; color: #666; font-weight: 600; margin-bottom: 8px;">📁 Related URLs (${children.length}):</p>
+                                    ${children.map(child => `
+                                        <div style="padding: 8px; background: #f5f5f5; border-radius: 4px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+                                            <div>
+                                                <p style="font-size: 12px; margin: 0;"><strong>${child.title}</strong></p>
+                                                <p style="font-size: 11px; color: #999; margin: 2px 0;">🔗 ${child.source_url}</p>
+                                            </div>
+                                            <button onclick="event.stopPropagation(); viewDocument(${child.id})" style="background: #28a745; padding: 5px 10px; font-size: 11px;">View</button>
+                                        </div>
+                                    `).join('')}
                                 </div>
-                                <div style="display: flex; gap: 8px;">
-                                    <button onclick="event.stopPropagation(); viewDocument(${doc.id})" style="background: #667eea; padding: 8px 15px; font-size: 12px;">View</button>
-                                    <button onclick="event.stopPropagation(); deleteDocument(${doc.id})" style="background: #dc3545; padding: 8px 15px; font-size: 12px;">Delete</button>
+                            ` : '';
+                            
+                            return `
+                                <div class="document-item" style="cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start; border: 2px solid #667eea; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
+                                    <div style="flex: 1;">
+                                        <h4>📌 ${doc.title}</h4>
+                                        <p>Type: ${doc.source_type === 'url' ? '🌐 URL' : '📄 File'}</p>
+                                        <p>Added: ${new Date(doc.created_at).toLocaleDateString()}</p>
+                                        ${childrenHtml}
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                                        <button onclick="event.stopPropagation(); viewDocument(${doc.id})" style="background: #667eea; padding: 8px 15px; font-size: 12px;">View</button>
+                                        <button onclick="event.stopPropagation(); deleteDocument(${doc.id})" style="background: #dc3545; padding: 8px 15px; font-size: 12px;">Delete</button>
+                                    </div>
                                 </div>
-                            </div>
-                        `).join('');
+                            `;
+                        }).join('');
                     }
                 } else {
                     showMessage('docsMsg', data.error, 'error');
@@ -821,13 +987,53 @@
                         <strong>Added:</strong> ${new Date(data.document.created_at).toLocaleDateString()}
                     `;
                     
-                    document.getElementById('detailContent').textContent = data.document.content || data.preview;
+                    // Check if document has URL-grouped content
+                    let contentHtml = '';
+                    if (data.document.url_grouped_content) {
+                        try {
+                            const urlGrouped = JSON.parse(data.document.url_grouped_content);
+                            // Display as expandable sections per URL
+                            contentHtml = '<div class="url-groups">';
+                            Object.entries(urlGrouped).forEach(([urlKey, urlData], idx) => {
+                                const expandId = `expand_${docId}_${idx}`;
+                                contentHtml += `
+                                    <div style="margin-bottom: 20px; border: 1px solid #ddd; border-radius: 6px; overflow: hidden;">
+                                        <button onclick="toggleUrlContent('${expandId}')" style="width: 100%; text-align: left; background: #f5f5f5; padding: 12px; border: none; cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
+                                            <span>🔗 ${urlKey}</span>
+                                            <span id="${expandId}_icon">▼</span>
+                                        </button>
+                                        <div id="${expandId}" style="display: none; padding: 15px; background: white; max-height: 400px; overflow-y: auto;">
+                                            <h5>${urlData.title}</h5>
+                                            <p style="color: #666; font-size: 13px; margin-bottom: 12px;">From: <a href="${urlKey}" target="_blank" style="color: #667eea;">${urlKey}</a></p>
+                                            <pre style="background: #f9f9f9; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;">${urlData.content}</pre>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            contentHtml += '</div>';
+                            document.getElementById('detailContent').innerHTML = contentHtml;
+                        } catch (e) {
+                            // Fallback to regular content if JSON parsing fails
+                            document.getElementById('detailContent').textContent = data.document.content || data.preview;
+                        }
+                    } else {
+                        // No URL grouping, show regular content
+                        document.getElementById('detailContent').textContent = data.document.content || data.preview;
+                    }
                 } else {
                     alert('Error loading document: ' + data.error);
                 }
             } catch (err) {
                 alert('Error: ' + err.message);
             }
+        }
+
+        function toggleUrlContent(elementId) {
+            const element = document.getElementById(elementId);
+            const icon = document.getElementById(elementId + '_icon');
+            const isVisible = element.style.display !== 'none';
+            element.style.display = isVisible ? 'none' : 'block';
+            icon.textContent = isVisible ? '▶' : '▼';
         }
 
         function closeDocDetail() {
@@ -838,7 +1044,7 @@
         let currentViewingDocId = null;
 
         async function deleteDocument(docId) {
-            if (!confirm('Are you sure you want to delete this document?')) {
+            if (!confirm('Are you sure you want to delete this document? (This will delete all related URLs if it is a group)')) {
                 return;
             }
 
@@ -849,7 +1055,10 @@
 
                 const data = await response.json();
                 if (data.success) {
-                    showMessage('docsMsg', 'Document deleted successfully', 'success');
+                    const msg = data.deleted_count > 1 
+                        ? `Document group deleted successfully (${data.deleted_count} documents removed)`
+                        : 'Document deleted successfully';
+                    showMessage('docsMsg', msg, 'success');
                     handleListDocs();
                     closeDocDetail();
                 } else {
@@ -887,11 +1096,17 @@
                     // Keep "All Documents" option
                     select.innerHTML = '<option value="">📚 All Documents</option>';
                     
-                    // Add user's documents
-                    data.documents.forEach(doc => {
+                    // Filter to show only main documents (parent_id = null)
+                    const mainDocs = data.documents.filter(doc => doc.parent_id === null);
+                    
+                    // Add only main documents
+                    mainDocs.forEach(doc => {
                         const option = document.createElement('option');
                         option.value = doc.id;
-                        option.textContent = `${doc.source_type === 'url' ? '🌐' : '📄'} ${doc.title}`;
+                        // Show indicator that this is a parent document with children
+                        const childCount = data.documents.filter(d => d.parent_id === doc.id).length;
+                        const childText = childCount > 0 ? ` (+${childCount} related)` : '';
+                        option.textContent = `${doc.source_type === 'url' ? '🌐' : '📄'} ${doc.title}${childText}`;
                         select.appendChild(option);
                     });
 
@@ -1070,8 +1285,91 @@
             console.log(`[Chat] Saved LLM model: ${model}`);
         }
 
+        // Load available LLM models from backend
+        async function loadAvailableModels() {
+            try {
+                console.log('[Models] Fetching available models from backend...');
+                const response = await fetch('/api/available-models');
+                const data = await response.json();
+                
+                if (!data.success || !data.models) {
+                    console.warn('[Models] Failed to load models from backend, keeping hardcoded defaults');
+                    return;
+                }
+                
+                const models = data.models;
+                const llmModelSelect = document.getElementById('llmModel');
+                
+                // Clear existing options
+                llmModelSelect.innerHTML = '';
+                
+                // Add Cloud Models
+                if (models.cloud_models && models.cloud_models.length > 0) {
+                    const cloudGroup = document.createElement('optgroup');
+                    cloudGroup.label = '🌐 Cloud-Based Models';
+                    
+                    models.cloud_models.forEach((model, idx) => {
+                        const option = document.createElement('option');
+                        option.value = model.id;
+                        option.textContent = `${idx + 1}. ${model.name} (${model.desc})`;
+                        cloudGroup.appendChild(option);
+                    });
+                    
+                    llmModelSelect.appendChild(cloudGroup);
+                    console.log(`[Models] Added ${models.cloud_models.length} cloud models`);
+                }
+                
+                // Add Offline Models
+                if (models.offline_models && models.offline_models.length > 0) {
+                    const offlineGroup = document.createElement('optgroup');
+                    offlineGroup.label = '💻 Offline Models (Local)';
+                    
+                    models.offline_models.forEach((model, idx) => {
+                        const option = document.createElement('option');
+                        option.value = model.id;
+                        option.textContent = `${models.cloud_models.length + idx + 1}. ${model.name} (${model.desc})`;
+                        offlineGroup.appendChild(option);
+                    });
+                    
+                    llmModelSelect.appendChild(offlineGroup);
+                    console.log(`[Models] Added ${models.offline_models.length} offline models`);
+                }
+                
+                // Add Other Models
+                if (models.other_models && models.other_models.length > 0) {
+                    const otherGroup = document.createElement('optgroup');
+                    otherGroup.label = '🔧 Other';
+                    
+                    models.other_models.forEach((model) => {
+                        const option = document.createElement('option');
+                        option.value = model.id;
+                        option.textContent = `${model.name} (${model.desc})`;
+                        otherGroup.appendChild(option);
+                    });
+                    
+                    llmModelSelect.appendChild(otherGroup);
+                    console.log(`[Models] Added ${models.other_models.length} other models`);
+                }
+                
+                // Restore previously selected model if available
+                const savedModel = localStorage.getItem('selected_llm_model');
+                if (savedModel) {
+                    llmModelSelect.value = savedModel;
+                    console.log(`[Models] Restored saved model: ${savedModel}`);
+                }
+                
+                console.log('[Models] ✓ Successfully loaded models from backend');
+            } catch (err) {
+                console.error('[Models] Failed to load models from backend:', err);
+                console.warn('[Models] Keeping hardcoded model defaults');
+            }
+        }
+
         // Add event listener to model selector and initialize session
         document.addEventListener('DOMContentLoaded', function() {
+            // Load models from backend
+            loadAvailableModels();
+            
             // First, restore session from localStorage
             initializeSession();
             
